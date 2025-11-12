@@ -1,7 +1,7 @@
 """
 视频裁剪软件
 支持单点裁剪和批量裁剪模式
-版本: 1.0.0
+版本: 1.1.0
 作者: andre.li
 """
 import os
@@ -11,12 +11,15 @@ from datetime import datetime, timedelta
 import threading
 from moviepy.editor import VideoFileClip
 from pathlib import Path
+import base64
+from io import BytesIO
+from PIL import Image
 
 
 class VideoClipperApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("视频裁剪工具 v1.0.0")
+        self.root.title("视频裁剪工具 v1.1.0")
         self.root.geometry("900x750")
         self.root.minsize(850, 700)  # 设置最小窗口尺寸
         self.root.resizable(True, True)
@@ -74,7 +77,7 @@ class VideoClipperApp:
         
         # 版本标签
         version_label = tk.Label(header,
-                                text="v1.0.0",
+                                text="v1.1.0",
                                 font=("Microsoft YaHei UI", 8),
                                 bg=self.colors['accent'],
                                 fg='white',
@@ -448,9 +451,16 @@ class VideoClipperApp:
             "• 配置向前/向后裁剪秒数",
             "• 选择时间戳文本文件",
             "• 文件格式: 每行一个时间点",
-            "  格式: HH:MM:SS 描述",
-            "  示例: 12:30:45 第一个片段",
-            "• 支持 # 开头的注释行",
+            "• 支持多种时间格式:",
+            "  - HH:MM:SS 描述",
+            "    例: 12:30:45 第一个片段",
+            "  - YYYY-MM-DD HH:MM:SS 描述",
+            "    例: 2025-11-13 00:26:39 第二个片段",
+            "  - YYYY年MM月DD日HH:MM:SS 描述",
+            "    例: 2025年11月13日00:26:50 第三个片段",
+            "  - HH点MM分SS秒 描述",
+            "    例: 00点34分20秒 第四个片段",
+            "• 支持 # 开头的注释行和空行",
             "",
             "注意事项",
             "• 裁剪时长必须是正整数",
@@ -524,6 +534,73 @@ class VideoClipperApp:
         except:
             raise ValueError(f"时间格式错误: {time_str}")
     
+    def parse_flexible_time(self, time_str):
+        """
+        解析多种时间格式，返回秒数
+        支持的格式:
+        - HH:MM:SS (例如: 12:30:45)
+        - YYYY-MM-DD HH:MM:SS (例如: 2025-11-13 00:26:39)
+        - YYYY年MM月DD日HH:MM:SS (例如: 2025年11月13日00:26:50)
+        - HH点MM分SS秒 (例如: 00点34分20秒)
+        """
+        import re
+        from datetime import datetime
+        
+        time_str = time_str.strip()
+        
+        # 格式1: HH:MM:SS
+        if re.match(r'^\d{1,2}:\d{2}:\d{2}$', time_str):
+            return self.parse_time(time_str)
+        
+        # 格式2: YYYY-MM-DD HH:MM:SS
+        match = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})$', time_str)
+        if match:
+            year, month, day, hour, minute, second = map(int, match.groups())
+            # 验证时间范围
+            if not (0 <= hour <= 23):
+                raise ValueError("小时必须在 0-23 之间")
+            if not (0 <= minute <= 59):
+                raise ValueError("分钟必须在 0-59 之间")
+            if not (0 <= second <= 59):
+                raise ValueError("秒必须在 0-59 之间")
+            return hour * 3600 + minute * 60 + second
+        
+        # 格式3: YYYY年MM月DD日HH:MM:SS
+        match = re.match(r'^(\d{4})年(\d{1,2})月(\d{1,2})日(\d{1,2}):(\d{2}):(\d{2})$', time_str)
+        if match:
+            year, month, day, hour, minute, second = map(int, match.groups())
+            # 验证时间范围
+            if not (0 <= hour <= 23):
+                raise ValueError("小时必须在 0-23 之间")
+            if not (0 <= minute <= 59):
+                raise ValueError("分钟必须在 0-59 之间")
+            if not (0 <= second <= 59):
+                raise ValueError("秒必须在 0-59 之间")
+            return hour * 3600 + minute * 60 + second
+        
+        # 格式4: HH点MM分SS秒
+        match = re.match(r'^(\d{1,2})点(\d{1,2})分(\d{1,2})秒$', time_str)
+        if match:
+            hour, minute, second = map(int, match.groups())
+            # 验证时间范围
+            if not (0 <= hour <= 23):
+                raise ValueError("小时必须在 0-23 之间")
+            if not (0 <= minute <= 59):
+                raise ValueError("分钟必须在 0-59 之间")
+            if not (0 <= second <= 59):
+                raise ValueError("秒必须在 0-59 之间")
+            return hour * 3600 + minute * 60 + second
+        
+        # 如果没有匹配任何格式
+        raise ValueError(
+            f"不支持的时间格式: {time_str}\n"
+            f"支持的格式:\n"
+            f"  • HH:MM:SS (例如: 12:30:45)\n"
+            f"  • YYYY-MM-DD HH:MM:SS (例如: 2025-11-13 00:26:39)\n"
+            f"  • YYYY年MM月DD日HH:MM:SS (例如: 2025年11月13日00:26:50)\n"
+            f"  • HH点MM分SS秒 (例如: 00点34分20秒)"
+        )
+    
     def seconds_to_time(self, seconds):
         """将秒数转换为HH:MM:SS格式"""
         hours = int(seconds // 3600)
@@ -541,6 +618,530 @@ class VideoClipperApp:
         finally:
             if video is not None:
                 video.close()
+    
+    def extract_frame_as_base64(self, video_path, time_seconds, max_width=400):
+        """
+        提取视频指定时间的帧并转换为base64编码
+        
+        Args:
+            video_path: 视频文件路径
+            time_seconds: 提取帧的时间（秒）
+            max_width: 图像最大宽度（用于缩放）
+        
+        Returns:
+            base64编码的图像字符串
+        """
+        video = None
+        try:
+            video = VideoFileClip(video_path)
+            # 确保时间在有效范围内
+            time_seconds = max(0, min(time_seconds, video.duration - 0.1))
+            
+            # 提取帧
+            frame = video.get_frame(time_seconds)
+            
+            # 转换为PIL图像
+            img = Image.fromarray(frame)
+            
+            # 按比例缩放
+            if img.width > max_width:
+                ratio = max_width / img.width
+                new_height = int(img.height * ratio)
+                img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
+            
+            # 转换为base64
+            buffer = BytesIO()
+            img.save(buffer, format='JPEG', quality=85)
+            img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+            
+            return img_base64
+        except Exception as e:
+            # 如果提取失败，返回None
+            return None
+        finally:
+            if video is not None:
+                video.close()
+    
+    def generate_html_report(self, results, output_dir):
+        """
+        生成批量裁剪的HTML报告
+        
+        Args:
+            results: 裁剪结果列表，每个元素包含：
+                    {
+                        'time_str': 时间字符串,
+                        'description': 描述,
+                        'status': 'success' or 'failed',
+                        'output_path': 输出文件路径（成功时）,
+                        'error': 错误信息（失败时）,
+                        'first_frame': 首帧base64（成功时）,
+                        'last_frame': 尾帧base64（成功时）
+                    }
+            output_dir: 报告输出目录
+        
+        Returns:
+            HTML报告文件路径
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        report_path = os.path.join(output_dir, f"裁剪报告_{timestamp}.html")
+        
+        # 统计信息
+        total = len(results)
+        success = sum(1 for r in results if r['status'] == 'success')
+        failed = total - success
+        
+        # HTML模板
+        html_content = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频裁剪报告</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: 'Microsoft YaHei UI', 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }}
+        
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }}
+        
+        .header {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }}
+        
+        .header h1 {{
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }}
+        
+        .header .time {{
+            font-size: 1.1em;
+            opacity: 0.9;
+        }}
+        
+        .summary {{
+            display: flex;
+            justify-content: space-around;
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }}
+        
+        .stat-card {{
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            min-width: 150px;
+        }}
+        
+        .stat-card .number {{
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }}
+        
+        .stat-card.total .number {{ color: #667eea; }}
+        .stat-card.success .number {{ color: #10b981; }}
+        .stat-card.failed .number {{ color: #ef4444; }}
+        
+        .stat-card .label {{
+            color: #6b7280;
+            font-size: 1em;
+        }}
+        
+        .content {{
+            padding: 30px;
+        }}
+        
+        .result-item {{
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            transition: all 0.3s ease;
+        }}
+        
+        .result-item:hover {{
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            transform: translateY(-2px);
+        }}
+        
+        .result-item.success {{
+            border-left: 5px solid #10b981;
+        }}
+        
+        .result-item.failed {{
+            border-left: 5px solid #ef4444;
+        }}
+        
+        .result-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e5e7eb;
+        }}
+        
+        .result-title {{
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #1f2937;
+        }}
+        
+        .status-badge {{
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }}
+        
+        .status-badge.success {{
+            background: #d1fae5;
+            color: #065f46;
+        }}
+        
+        .status-badge.failed {{
+            background: #fee2e2;
+            color: #991b1b;
+        }}
+        
+        .result-info {{
+            margin-bottom: 20px;
+        }}
+        
+        .info-row {{
+            display: flex;
+            padding: 8px 0;
+            border-bottom: 1px dashed #e5e7eb;
+        }}
+        
+        .info-row:last-child {{
+            border-bottom: none;
+        }}
+        
+        .info-label {{
+            font-weight: bold;
+            color: #6b7280;
+            min-width: 100px;
+        }}
+        
+        .info-value {{
+            color: #1f2937;
+            flex: 1;
+        }}
+        
+        .frames-container {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }}
+        
+        .frame-box {{
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }}
+        
+        .frame-box h4 {{
+            color: #6b7280;
+            margin-bottom: 10px;
+            font-size: 1em;
+        }}
+        
+        .frame-box img {{
+            max-width: 100%;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }}
+        
+        .frame-box img:hover {{
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }}
+        
+        .error-message {{
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 15px;
+            color: #991b1b;
+            margin-top: 10px;
+        }}
+        
+        .footer {{
+            text-align: center;
+            padding: 20px;
+            background: #f9fafb;
+            color: #6b7280;
+            font-size: 0.9em;
+        }}
+        
+        @media (max-width: 768px) {{
+            .frames-container {{
+                grid-template-columns: 1fr;
+            }}
+            
+            .summary {{
+                flex-direction: column;
+                gap: 15px;
+            }}
+        }}
+        
+        /* 图片放大模态框样式 */
+        .modal {{
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.95);
+            animation: fadeIn 0.3s ease;
+        }}
+        
+        @keyframes fadeIn {{
+            from {{ opacity: 0; }}
+            to {{ opacity: 1; }}
+        }}
+        
+        .modal-content {{
+            position: relative;
+            margin: auto;
+            padding: 0;
+            width: 90%;
+            max-width: 1200px;
+            top: 50%;
+            transform: translateY(-50%);
+            animation: zoomIn 0.3s ease;
+        }}
+        
+        @keyframes zoomIn {{
+            from {{ transform: translateY(-50%) scale(0.8); }}
+            to {{ transform: translateY(-50%) scale(1); }}
+        }}
+        
+        .modal-content img {{
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }}
+        
+        .close-modal {{
+            position: absolute;
+            top: 20px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 50px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            z-index: 10000;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }}
+        
+        .close-modal:hover,
+        .close-modal:focus {{
+            color: #bbb;
+        }}
+        
+        .modal-caption {{
+            text-align: center;
+            color: #f1f1f1;
+            padding: 20px;
+            font-size: 1.2em;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📹 视频裁剪报告</h1>
+            <div class="time">生成时间: {datetime.now().strftime("%Y年%m月%d日 %H:%M:%S")}</div>
+        </div>
+        
+        <div class="summary">
+            <div class="stat-card total">
+                <div class="number">{total}</div>
+                <div class="label">总计</div>
+            </div>
+            <div class="stat-card success">
+                <div class="number">{success}</div>
+                <div class="label">成功</div>
+            </div>
+            <div class="stat-card failed">
+                <div class="number">{failed}</div>
+                <div class="label">失败</div>
+            </div>
+        </div>
+        
+        <div class="content">
+"""
+        
+        # 添加每个结果
+        for idx, result in enumerate(results, 1):
+            status_class = result['status']
+            status_text = '✓ 成功' if status_class == 'success' else '✗ 失败'
+            
+            html_content += f"""
+            <div class="result-item {status_class}">
+                <div class="result-header">
+                    <div class="result-title">片段 #{idx}</div>
+                    <div class="status-badge {status_class}">{status_text}</div>
+                </div>
+                
+                <div class="result-info">
+                    <div class="info-row">
+                        <div class="info-label">时间点:</div>
+                        <div class="info-value">{result['time_str']}</div>
+                    </div>
+"""
+            
+            if result.get('description'):
+                html_content += f"""
+                    <div class="info-row">
+                        <div class="info-label">描述:</div>
+                        <div class="info-value">{result['description']}</div>
+                    </div>
+"""
+            
+            if status_class == 'success':
+                output_filename = os.path.basename(result['output_path'])
+                html_content += f"""
+                    <div class="info-row">
+                        <div class="info-label">输出文件:</div>
+                        <div class="info-value">{output_filename}</div>
+                    </div>
+                </div>
+"""
+                
+                # 添加首尾帧图像
+                if result.get('first_frame') and result.get('last_frame'):
+                    html_content += f"""
+                <div class="frames-container">
+                    <div class="frame-box">
+                        <h4>🎬 首帧</h4>
+                        <img src="data:image/jpeg;base64,{result['first_frame']}" alt="首帧">
+                    </div>
+                    <div class="frame-box">
+                        <h4>🎞️ 尾帧</h4>
+                        <img src="data:image/jpeg;base64,{result['last_frame']}" alt="尾帧">
+                    </div>
+                </div>
+"""
+            else:
+                html_content += f"""
+                </div>
+                <div class="error-message">
+                    <strong>错误信息:</strong> {result.get('error', '未知错误')}
+                </div>
+"""
+            
+            html_content += """
+            </div>
+"""
+        
+        # 添加页脚
+        html_content += f"""
+        </div>
+        
+        <div class="footer">
+            视频裁剪工具 v1.1.0 | 作者: andre.li | {datetime.now().year}
+        </div>
+    </div>
+    
+    <!-- 图片放大模态框 -->
+    <div id="imageModal" class="modal">
+        <span class="close-modal">&times;</span>
+        <div class="modal-content">
+            <img id="modalImage" src="" alt="放大图像">
+            <div class="modal-caption" id="modalCaption"></div>
+        </div>
+    </div>
+    
+    <script>
+        // 图片放大功能
+        const modal = document.getElementById('imageModal');
+        const modalImg = document.getElementById('modalImage');
+        const modalCaption = document.getElementById('modalCaption');
+        const closeBtn = document.querySelector('.close-modal');
+        
+        // 为所有图片添加点击事件
+        document.querySelectorAll('.frame-box img').forEach(img => {{
+            img.addEventListener('click', function() {{
+                modal.style.display = 'block';
+                modalImg.src = this.src;
+                
+                // 获取图片标题（首帧或尾帧）
+                const frameTitle = this.closest('.frame-box').querySelector('h4').textContent;
+                
+                // 获取片段信息
+                const resultItem = this.closest('.result-item');
+                const segmentTitle = resultItem.querySelector('.result-title').textContent;
+                const timeInfo = resultItem.querySelector('.info-value').textContent;
+                
+                modalCaption.textContent = `${{segmentTitle}} - ${{timeInfo}} - ${{frameTitle}}`;
+            }});
+        }});
+        
+        // 点击关闭按钮
+        closeBtn.addEventListener('click', function() {{
+            modal.style.display = 'none';
+        }});
+        
+        // 点击模态框背景关闭
+        modal.addEventListener('click', function(e) {{
+            if (e.target === modal) {{
+                modal.style.display = 'none';
+            }}
+        }});
+        
+        // ESC键关闭
+        document.addEventListener('keydown', function(e) {{
+            if (e.key === 'Escape' && modal.style.display === 'block') {{
+                modal.style.display = 'none';
+            }}
+        }});
+    </script>
+</body>
+</html>
+"""
+        
+        # 写入文件
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        
+        return report_path
     
     def clip_video(self, video_path, start_time, end_time, output_path):
         """裁剪视频片段"""
@@ -729,11 +1330,40 @@ class VideoClipperApp:
                 line = line.strip()
                 if not line or line.startswith('#'):  # 支持空行和注释
                     continue
-                # 解析格式: HH:MM:SS 描述
-                parts = line.split(maxsplit=1)
-                if len(parts) >= 1:
-                    time_str = parts[0]
-                    description = parts[1] if len(parts) > 1 else ""
+                
+                # 智能解析时间格式
+                # 支持多种格式
+                import re
+                
+                # 尝试匹配不同的时间格式
+                time_str = None
+                description = ""
+                
+                # 格式1: YYYY-MM-DD HH:MM:SS 描述
+                match = re.match(r'^(\d{4}-\d{1,2}-\d{1,2}\s+\d{1,2}:\d{2}:\d{2})\s*(.*)', line)
+                if match:
+                    time_str = match.group(1)
+                    description = match.group(2)
+                else:
+                    # 格式2: YYYY年MM月DD日HH:MM:SS 描述
+                    match = re.match(r'^(\d{4}年\d{1,2}月\d{1,2}日\d{1,2}:\d{2}:\d{2})\s*(.*)', line)
+                    if match:
+                        time_str = match.group(1)
+                        description = match.group(2)
+                    else:
+                        # 格式3: HH点MM分SS秒 描述
+                        match = re.match(r'^(\d{1,2}点\d{1,2}分\d{1,2}秒)\s*(.*)', line)
+                        if match:
+                            time_str = match.group(1)
+                            description = match.group(2)
+                        else:
+                            # 格式4: HH:MM:SS 描述
+                            parts = line.split(maxsplit=1)
+                            if len(parts) >= 1:
+                                time_str = parts[0]
+                                description = parts[1] if len(parts) > 1 else ""
+                
+                if time_str:
                     timestamps.append((time_str, description, line_num))
             
             if not timestamps:
@@ -750,17 +1380,25 @@ class VideoClipperApp:
             
             success_count = 0
             failed_items = []
+            results = []  # 用于生成HTML报告的结果列表
             
             for i, (time_str, description, line_num) in enumerate(timestamps):
                 try:
-                    # 解析时间
-                    clip_time_seconds = self.parse_time(time_str)
+                    # 解析时间（支持多种格式）
+                    clip_time_seconds = self.parse_flexible_time(time_str)
                     
                     # 计算相对于视频开始的秒数
                     relative_seconds = clip_time_seconds - video_start_seconds
                     
                     if relative_seconds < 0:
-                        failed_items.append(f"第{line_num}行: {time_str} - 时间点早于视频起始时间")
+                        error_msg = f"时间点早于视频起始时间"
+                        failed_items.append(f"第{line_num}行: {time_str} - {error_msg}")
+                        results.append({
+                            'time_str': time_str,
+                            'description': description,
+                            'status': 'failed',
+                            'error': error_msg
+                        })
                         continue
                     
                     # 计算裁剪的起止时间(使用用户配置的时长)
@@ -769,44 +1407,102 @@ class VideoClipperApp:
                     
                     # 检查时间范围
                     if start_time < 0:
-                        failed_items.append(f"第{line_num}行: {time_str} - 时间点太早（需要前{before_sec}秒）")
+                        error_msg = f"时间点太早（需要前{before_sec}秒）"
+                        failed_items.append(f"第{line_num}行: {time_str} - {error_msg}")
+                        results.append({
+                            'time_str': time_str,
+                            'description': description,
+                            'status': 'failed',
+                            'error': error_msg
+                        })
                         continue
                     
                     if end_time > video_duration:
-                        failed_items.append(f"第{line_num}行: {time_str} - 时间点太晚（需要后{after_sec}秒，视频时长{self.seconds_to_time(video_duration)}）")
+                        error_msg = f"时间点太晚（需要后{after_sec}秒，视频时长{self.seconds_to_time(video_duration)}）"
+                        failed_items.append(f"第{line_num}行: {time_str} - {error_msg}")
+                        results.append({
+                            'time_str': time_str,
+                            'description': description,
+                            'status': 'failed',
+                            'error': error_msg
+                        })
                         continue
                     
                     # 生成输出文件名
                     safe_desc = "".join(c for c in description if c.isalnum() or c in (' ', '-', '_')).strip()
                     if safe_desc:
-                        output_filename = f"{time_str.replace(':', '-')}_{safe_desc}.mp4"
+                        output_filename = f"{time_str.replace(':', '-').replace(' ', '_').replace('年', '').replace('月', '').replace('日', '').replace('点', '').replace('分', '').replace('秒', '')}_{safe_desc}.mp4"
                     else:
-                        output_filename = f"{time_str.replace(':', '-')}.mp4"
+                        output_filename = f"{time_str.replace(':', '-').replace(' ', '_').replace('年', '').replace('月', '').replace('日', '').replace('点', '').replace('分', '').replace('秒', '')}.mp4"
                     output_path = os.path.join(target_dir, output_filename)
                     
                     self.update_progress(f"正在裁剪 ({i+1}/{len(timestamps)}): {time_str}")
                     
                     # 裁剪视频
                     self.clip_video(video_path, start_time, end_time, output_path)
+                    
+                    # 提取首尾帧
+                    self.update_progress(f"正在提取帧 ({i+1}/{len(timestamps)}): {time_str}")
+                    first_frame = self.extract_frame_as_base64(output_path, 0.1)
+                    
+                    # 获取裁剪后的视频时长
+                    clip_duration = end_time - start_time
+                    last_frame = self.extract_frame_as_base64(output_path, clip_duration - 0.1)
+                    
+                    # 记录成功结果
+                    results.append({
+                        'time_str': time_str,
+                        'description': description,
+                        'status': 'success',
+                        'output_path': output_path,
+                        'first_frame': first_frame,
+                        'last_frame': last_frame
+                    })
+                    
                     success_count += 1
                     
                 except Exception as e:
-                    error_msg = f"第{line_num}行: {time_str} - {str(e)}"
-                    print(f"裁剪失败: {error_msg}")
-                    failed_items.append(error_msg)
+                    error_msg = str(e)
+                    print(f"裁剪失败: 第{line_num}行: {time_str} - {error_msg}")
+                    failed_items.append(f"第{line_num}行: {time_str} - {error_msg}")
+                    results.append({
+                        'time_str': time_str,
+                        'description': description,
+                        'status': 'failed',
+                        'error': error_msg
+                    })
                     continue
             
             self.root.after(0, lambda: self.progress_bar.stop())
-            self.update_progress("批量裁剪完成!")
             
-            # 显示结果
-            result_msg = f"批量裁剪完成!\n成功: {success_count}/{len(timestamps)}\n保存位置: {target_dir}"
-            if failed_items:
-                result_msg += f"\n\n失败项目 ({len(failed_items)}):\n" + "\n".join(failed_items[:5])
-                if len(failed_items) > 5:
-                    result_msg += f"\n... 还有 {len(failed_items) - 5} 个失败项"
-            
-            self.root.after(0, lambda: messagebox.showinfo("批量裁剪结果", result_msg))
+            # 生成HTML报告
+            self.update_progress("正在生成报告...")
+            try:
+                report_path = self.generate_html_report(results, target_dir)
+                self.update_progress("批量裁剪完成!")
+                
+                # 显示结果
+                result_msg = f"批量裁剪完成!\n\n成功: {success_count}/{len(timestamps)}\n保存位置: {target_dir}\n\nHTML报告已生成:\n{os.path.basename(report_path)}"
+                if failed_items:
+                    result_msg += f"\n\n失败项目 ({len(failed_items)}):\n" + "\n".join(failed_items[:3])
+                    if len(failed_items) > 3:
+                        result_msg += f"\n... 还有 {len(failed_items) - 3} 个失败项"
+                
+                self.root.after(0, lambda: messagebox.showinfo("批量裁剪结果", result_msg))
+                
+                # 询问是否打开报告
+                def ask_open_report():
+                    if messagebox.askyesno("打开报告", "是否在浏览器中打开HTML报告？"):
+                        import webbrowser
+                        webbrowser.open(report_path)
+                
+                self.root.after(100, ask_open_report)
+                
+            except Exception as e:
+                print(f"生成报告失败: {str(e)}")
+                self.update_progress("批量裁剪完成!")
+                result_msg = f"批量裁剪完成!\n\n成功: {success_count}/{len(timestamps)}\n保存位置: {target_dir}\n\n注意: HTML报告生成失败"
+                self.root.after(0, lambda: messagebox.showinfo("批量裁剪结果", result_msg))
             
         except Exception as e:
             self.root.after(0, lambda: self.progress_bar.stop())
