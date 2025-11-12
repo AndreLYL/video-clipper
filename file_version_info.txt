@@ -1,7 +1,7 @@
 # UTF-8
 #
-# 版本信息文件
-
+# For more details about fixed file info:
+# https://msdn.microsoft.com/en-us/library/ms646997.aspx
 VSVersionInfo(
   ffi=FixedFileInfo(
     filevers=(1, 1, 0, 0),
@@ -17,9 +17,9 @@ VSVersionInfo(
     StringFileInfo(
       [
       StringTable(
-        u'080404b0',
+        u'080404B0',
         [StringStruct(u'CompanyName', u'andre.li'),
-        StringStruct(u'FileDescription', u'视频裁剪工具'),
+        StringStruct(u'FileDescription', u'视频裁剪工具 - 支持单点和批量裁剪'),
         StringStruct(u'FileVersion', u'1.1.0'),
         StringStruct(u'InternalName', u'VideoClipper'),
         StringStruct(u'LegalCopyright', u'Copyright (c) 2025 andre.li'),
@@ -30,4 +30,3 @@ VSVersionInfo(
     VarFileInfo([VarStruct(u'Translation', [2052, 1200])])
   ]
 )
-
