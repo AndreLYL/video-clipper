@@ -30,7 +30,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='VideoClipper_v1.1.0',
+    name='VideoClipper_v1.1.1',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
