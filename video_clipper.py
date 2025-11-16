@@ -1,7 +1,7 @@
 """
 视频裁剪软件
 支持单点裁剪和批量裁剪模式
-版本: 1.1.0
+版本: 1.3.0
 作者: andre.li
 """
 import os
@@ -19,7 +19,7 @@ from PIL import Image
 class VideoClipperApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("视频裁剪工具 v1.1.1")
+        self.root.title("视频裁剪工具 v1.3.0")
         self.root.geometry("900x750")
         self.root.minsize(850, 700)  # 设置最小窗口尺寸
         self.root.resizable(True, True)
@@ -77,7 +77,7 @@ class VideoClipperApp:
         
         # 版本标签
         version_label = tk.Label(header,
-                                text="v1.1.0",
+                                text="v1.3.0",
                                 font=("Microsoft YaHei UI", 8),
                                 bg=self.colors['accent'],
                                 fg='white',
@@ -453,21 +453,22 @@ class VideoClipperApp:
             "• 选择时间戳文本文件",
             "• 文件格式: 每行一个时间点",
             "• 支持多种时间格式:",
-            "  - HH:MM:SS",
-            "    例: 12:30:45",
-            "  - YYYY-MM-DD HH:MM:SS",
+            "  - HH:MM:SS 或 HH:MM",
+            "    例: 12:30:45 或 12:37",
+            "  - YYYY-MM-DD HH:MM:SS 或 YYYY-MM-DD HH:MM",
             "    例: 2025-11-13 00:26:39",
-            "  - YYYY年MM月DD日HH:MM:SS",
+            "  - YYYY年MM月DD日HH:MM:SS 或 YYYY年MM月DD日HH:MM",
             "    例: 2025年11月13日00:26:50",
-            "  - HH点MM分SS秒",
-            "    例: 00点34分20秒",
+            "  - HH点MM分SS秒 或 HH点MM分",
+            "    例: 00点34分20秒 或 12点37分",
+            "• 缺少秒数时: 自动使用'向前裁剪秒数'",
+            "  例: 12:37 + 向前40秒 = 12:37:40",
             "• 兼容性: 自动识别中文标点符号（如：、－等）",
-            "• ⚠ 必须包含秒数，否则将跳过该条目",
             "• 支持 # 开头的注释行和空行",
             "",
             "注意事项",
             "• 裁剪时长必须是正整数",
-            "• 时间格式必须完整（包含秒数）",
+            "• 缺少秒数时将使用'向前裁剪秒数'作为默认值",
             "• 确保视频时长足够进行裁剪",
             "• 裁剪时间不能超出视频范围",
             "• 处理过程中请勿关闭程序"
@@ -543,12 +544,17 @@ class VideoClipperApp:
         解析多种时间格式，返回秒数
         支持的格式:
         - HH:MM:SS (例如: 12:30:45)
+        - HH:MM (例如: 12:30, 默认秒数为用户配置的"向前"秒数)
         - YYYY-MM-DD HH:MM:SS (例如: 2025-11-13 00:26:39)
+        - YYYY-MM-DD HH:MM (默认秒数为用户配置的"向前"秒数)
         - YYYY年MM月DD日HH:MM:SS (例如: 2025年11月13日00:26:50)
+        - YYYY年MM月DD日HH:MM (默认秒数为用户配置的"向前"秒数)
         - HH点MM分SS秒 (例如: 00点34分20秒)
+        - HH点MM分 (默认秒数为用户配置的"向前"秒数)
         - 支持中文标点符号（自动转换为英文）
         
-        注意: 如果格式不完整（缺少秒数），返回 None 表示跳过此条目
+        注意: 如果缺少秒数，将使用用户配置的"向前裁剪秒数"作为默认秒数
+        例如: 12:37 + 向前40秒 = 12:37:40
         """
         import re
         from datetime import datetime
@@ -566,13 +572,27 @@ class VideoClipperApp:
         # 中文破折号 → 英文减号
         time_str = time_str.replace('－', '-').replace('—', '-')
         
+        # 获取用户配置的向前裁剪秒数（用作缺少秒数时的默认值）
+        try:
+            default_seconds = int(self.before_seconds.get())
+        except:
+            default_seconds = 40  # 如果获取失败，使用默认值40秒
+        
         # 格式1: HH:MM:SS
         if re.match(r'^\d{1,2}:\d{2}:\d{2}$', time_str):
             return self.parse_time(time_str)
         
-        # 格式1.5: HH:MM (缺少秒，跳过)
-        if re.match(r'^(\d{1,2}):(\d{2})$', time_str):
-            return None  # 返回None表示跳过此条目
+        # 格式1.5: HH:MM (缺少秒，使用默认秒数)
+        match = re.match(r'^(\d{1,2}):(\d{2})$', time_str)
+        if match:
+            hour, minute = map(int, match.groups())
+            # 验证时间范围
+            if not (0 <= hour <= 23):
+                raise ValueError("小时必须在 0-23 之间")
+            if not (0 <= minute <= 59):
+                raise ValueError("分钟必须在 0-59 之间")
+            # 使用默认秒数
+            return hour * 3600 + minute * 60 + default_seconds
         
         # 格式2: YYYY-MM-DD HH:MM:SS
         match = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})$', time_str)
@@ -587,9 +607,17 @@ class VideoClipperApp:
                 raise ValueError("秒必须在 0-59 之间")
             return hour * 3600 + minute * 60 + second
         
-        # 格式2.5: YYYY-MM-DD HH:MM (缺少秒，跳过)
-        if re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})$', time_str):
-            return None  # 返回None表示跳过此条目
+        # 格式2.5: YYYY-MM-DD HH:MM (缺少秒，使用默认秒数)
+        match = re.match(r'^(\d{4})-(\d{1,2})-(\d{1,2})\s+(\d{1,2}):(\d{2})$', time_str)
+        if match:
+            year, month, day, hour, minute = map(int, match.groups())
+            # 验证时间范围
+            if not (0 <= hour <= 23):
+                raise ValueError("小时必须在 0-23 之间")
+            if not (0 <= minute <= 59):
+                raise ValueError("分钟必须在 0-59 之间")
+            # 使用默认秒数
+            return hour * 3600 + minute * 60 + default_seconds
         
         # 格式3: YYYY年MM月DD日HH:MM:SS
         match = re.match(r'^(\d{4})年(\d{1,2})月(\d{1,2})日(\d{1,2}):(\d{2}):(\d{2})$', time_str)
@@ -604,9 +632,17 @@ class VideoClipperApp:
                 raise ValueError("秒必须在 0-59 之间")
             return hour * 3600 + minute * 60 + second
         
-        # 格式3.5: YYYY年MM月DD日HH:MM (缺少秒，跳过)
-        if re.match(r'^(\d{4})年(\d{1,2})月(\d{1,2})日(\d{1,2}):(\d{2})$', time_str):
-            return None  # 返回None表示跳过此条目
+        # 格式3.5: YYYY年MM月DD日HH:MM (缺少秒，使用默认秒数)
+        match = re.match(r'^(\d{4})年(\d{1,2})月(\d{1,2})日(\d{1,2}):(\d{2})$', time_str)
+        if match:
+            year, month, day, hour, minute = map(int, match.groups())
+            # 验证时间范围
+            if not (0 <= hour <= 23):
+                raise ValueError("小时必须在 0-23 之间")
+            if not (0 <= minute <= 59):
+                raise ValueError("分钟必须在 0-59 之间")
+            # 使用默认秒数
+            return hour * 3600 + minute * 60 + default_seconds
         
         # 格式4: HH点MM分SS秒
         match = re.match(r'^(\d{1,2})点(\d{1,2})分(\d{1,2})秒$', time_str)
@@ -621,20 +657,31 @@ class VideoClipperApp:
                 raise ValueError("秒必须在 0-59 之间")
             return hour * 3600 + minute * 60 + second
         
-        # 格式4.5: HH点MM分 (缺少秒，跳过)
-        if re.match(r'^(\d{1,2})点(\d{1,2})分$', time_str):
-            return None  # 返回None表示跳过此条目
+        # 格式4.5: HH点MM分 (缺少秒，使用默认秒数)
+        match = re.match(r'^(\d{1,2})点(\d{1,2})分$', time_str)
+        if match:
+            hour, minute = map(int, match.groups())
+            # 验证时间范围
+            if not (0 <= hour <= 23):
+                raise ValueError("小时必须在 0-23 之间")
+            if not (0 <= minute <= 59):
+                raise ValueError("分钟必须在 0-59 之间")
+            # 使用默认秒数
+            return hour * 3600 + minute * 60 + default_seconds
         
         # 如果没有匹配任何格式
         raise ValueError(
             f"不支持的时间格式: {time_str}\n"
             f"支持的格式:\n"
             f"  • HH:MM:SS (例如: 12:30:45)\n"
+            f"  • HH:MM (例如: 12:30, 默认秒数为{default_seconds})\n"
             f"  • YYYY-MM-DD HH:MM:SS (例如: 2025-11-13 00:26:39)\n"
+            f"  • YYYY-MM-DD HH:MM (默认秒数为{default_seconds})\n"
             f"  • YYYY年MM月DD日HH:MM:SS (例如: 2025年11月13日00:26:50)\n"
+            f"  • YYYY年MM月DD日HH:MM (默认秒数为{default_seconds})\n"
             f"  • HH点MM分SS秒 (例如: 00点34分20秒)\n"
-            f"  • 支持中文标点符号（如：、－等）\n"
-            f"  ⚠ 注意: 必须包含秒数，否则将跳过此条目"
+            f"  • HH点MM分 (默认秒数为{default_seconds})\n"
+            f"  • 支持中文标点符号（如：、－等）"
         )
     
     def seconds_to_time(self, seconds):
@@ -655,14 +702,13 @@ class VideoClipperApp:
             if video is not None:
                 video.close()
     
-    def extract_frame_as_base64(self, video_path, time_seconds, max_width=400):
+    def extract_frame_as_base64(self, video_path, time_seconds):
         """
-        提取视频指定时间的帧并转换为base64编码
+        提取视频指定时间的帧并转换为base64编码（原始尺寸，不压缩）
         
         Args:
             video_path: 视频文件路径
             time_seconds: 提取帧的时间（秒）
-            max_width: 图像最大宽度（用于缩放）
         
         Returns:
             base64编码的图像字符串
@@ -676,18 +722,12 @@ class VideoClipperApp:
             # 提取帧
             frame = video.get_frame(time_seconds)
             
-            # 转换为PIL图像
+            # 转换为PIL图像（保持原始尺寸）
             img = Image.fromarray(frame)
             
-            # 按比例缩放
-            if img.width > max_width:
-                ratio = max_width / img.width
-                new_height = int(img.height * ratio)
-                img = img.resize((max_width, new_height), Image.Resampling.LANCZOS)
-            
-            # 转换为base64
+            # 转换为base64（高质量，不压缩）
             buffer = BytesIO()
-            img.save(buffer, format='JPEG', quality=85)
+            img.save(buffer, format='JPEG', quality=95)
             img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
             
             return img_base64
@@ -724,8 +764,7 @@ class VideoClipperApp:
         # 统计信息
         total = len(results)
         success = sum(1 for r in results if r['status'] == 'success')
-        skipped = sum(1 for r in results if r['status'] == 'skipped')
-        failed = sum(1 for r in results if r['status'] == 'failed')
+        failed = total - success
         
         # HTML模板
         html_content = f"""<!DOCTYPE html>
@@ -800,7 +839,6 @@ class VideoClipperApp:
         
         .stat-card.total .number {{ color: #667eea; }}
         .stat-card.success .number {{ color: #10b981; }}
-        .stat-card.skipped .number {{ color: #f59e0b; }}
         .stat-card.failed .number {{ color: #ef4444; }}
         
         .stat-card .label {{
@@ -828,10 +866,6 @@ class VideoClipperApp:
         
         .result-item.success {{
             border-left: 5px solid #10b981;
-        }}
-        
-        .result-item.skipped {{
-            border-left: 5px solid #f59e0b;
         }}
         
         .result-item.failed {{
@@ -863,11 +897,6 @@ class VideoClipperApp:
         .status-badge.success {{
             background: #d1fae5;
             color: #065f46;
-        }}
-        
-        .status-badge.skipped {{
-            background: #fef3c7;
-            color: #92400e;
         }}
         
         .status-badge.failed {{
@@ -1046,10 +1075,6 @@ class VideoClipperApp:
                 <div class="number">{success}</div>
                 <div class="label">成功</div>
             </div>
-            <div class="stat-card skipped">
-                <div class="number">{skipped}</div>
-                <div class="label">跳过</div>
-            </div>
             <div class="stat-card failed">
                 <div class="number">{failed}</div>
                 <div class="label">失败</div>
@@ -1062,12 +1087,7 @@ class VideoClipperApp:
         # 添加每个结果
         for idx, result in enumerate(results, 1):
             status_class = result['status']
-            if status_class == 'success':
-                status_text = '✓ 成功'
-            elif status_class == 'skipped':
-                status_text = '⊘ 跳过'
-            else:
-                status_text = '✗ 失败'
+            status_text = '✓ 成功' if status_class == 'success' else '✗ 失败'
             
             html_content += f"""
             <div class="result-item {status_class}">
@@ -1115,13 +1135,6 @@ class VideoClipperApp:
                     </div>
                 </div>
 """
-            elif status_class == 'skipped':
-                html_content += f"""
-                </div>
-                <div class="error-message" style="background: #fffbeb; border-color: #fde68a; color: #78350f;">
-                    <strong>跳过原因:</strong> {result.get('error', '未知原因')}
-                </div>
-"""
             else:
                 html_content += f"""
                 </div>
@@ -1139,7 +1152,7 @@ class VideoClipperApp:
         </div>
         
         <div class="footer">
-            视频裁剪工具 v1.1.1 | 作者: andre.li | {datetime.now().year}
+            视频裁剪工具 v1.3.0 | 作者: andre.li | {datetime.now().year}
         </div>
     </div>
     
@@ -1449,18 +1462,6 @@ class VideoClipperApp:
                 try:
                     # 解析时间（支持多种格式）
                     clip_time_seconds = self.parse_flexible_time(time_str)
-                    
-                    # 如果返回None，表示格式不完整（缺少秒数），跳过此条目
-                    if clip_time_seconds is None:
-                        skip_msg = f"跳过: 时间格式不完整（缺少秒数）"
-                        failed_items.append(f"第{line_num}行: {time_str} - {skip_msg}")
-                        results.append({
-                            'time_str': time_str,
-                            'description': description,
-                            'status': 'skipped',
-                            'error': skip_msg
-                        })
-                        continue
                     
                     # 计算相对于视频开始的秒数
                     relative_seconds = clip_time_seconds - video_start_seconds
