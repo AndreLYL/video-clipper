@@ -1,7 +1,7 @@
 """
 视频裁剪软件
 支持单点裁剪和批量裁剪模式
-版本: 1.3.0
+版本: 1.3.1
 作者: andre.li
 """
 import os
@@ -19,7 +19,7 @@ from PIL import Image
 class VideoClipperApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("视频裁剪工具 v1.3.0")
+        self.root.title("视频裁剪工具 v1.3.1")
         self.root.geometry("900x750")
         self.root.minsize(850, 700)  # 设置最小窗口尺寸
         self.root.resizable(True, True)
@@ -77,7 +77,7 @@ class VideoClipperApp:
         
         # 版本标签
         version_label = tk.Label(header,
-                                text="v1.3.0",
+                                text="v1.3.1",
                                 font=("Microsoft YaHei UI", 8),
                                 bg=self.colors['accent'],
                                 fg='white',
@@ -1155,7 +1155,7 @@ class VideoClipperApp:
         </div>
         
         <div class="footer">
-            视频裁剪工具 v1.3.0 | 作者: andre.li | {datetime.now().year}
+            视频裁剪工具 v1.3.1 | 作者: andre.li | {datetime.now().year}
         </div>
     </div>
     
