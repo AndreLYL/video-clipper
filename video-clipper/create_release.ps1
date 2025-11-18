@@ -12,10 +12,6 @@ param(
     [string]$ExeFile
 )
 
-# 设置控制台输出编码为UTF-8
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
 # 设置UTF-8编码（关键步骤，避免乱码）
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
