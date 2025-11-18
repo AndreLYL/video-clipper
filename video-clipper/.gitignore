@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec.backup
+build/
+dist/*.exe.backup
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 项目特定
+*.log
+*.tmp
+test_videos/
+output/
+*.html
+*.mp4
+
+# EXE文件太大，不提交到仓库，通过GitHub Release发布
+dist/*.exe
+
+# 临时文件
+commit_message_*.txt
+tag_message_*.txt
+v1.*_commit.txt
+v1.*_temp_commit.txt
+test_*.txt
+test_*.py
+
