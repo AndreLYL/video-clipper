@@ -21,8 +21,25 @@ $PSDefaultParameterValues['*:Encoding'] = 'utf8'
 $notes = Get-Content -Path $ReleaseNotesFile -Encoding UTF8 -Raw
 
 # 从发布说明的第一行提取标题（去掉#号）
+# 如果标题包含中文，建议使用英文标题避免编码问题
 $titleLine = Get-Content -Path $ReleaseNotesFile -Encoding UTF8 -First 1
-$title = $titleLine -replace '^#\s*', ''
+$titleFromFile = $titleLine -replace '^#\s*', ''
+
+# 检查标题是否包含中文字符
+if ($titleFromFile -match '[\u4e00-\u9fff]') {
+    Write-Host "警告: 标题包含中文字符，可能在某些环境下出现乱码" -ForegroundColor Yellow
+    Write-Host "建议: 使用英文标题，例如 'VideoClipper $Version'" -ForegroundColor Yellow
+    Write-Host "当前标题: $titleFromFile" -ForegroundColor Cyan
+    $useEnglishTitle = Read-Host "是否使用英文标题? (Y/N, 默认N)"
+    if ($useEnglishTitle -eq 'Y' -or $useEnglishTitle -eq 'y') {
+        $title = "VideoClipper $Version"
+        Write-Host "使用英文标题: $title" -ForegroundColor Green
+    } else {
+        $title = $titleFromFile
+    }
+} else {
+    $title = $titleFromFile
+}
 
 Write-Host "创建Release: $Version" -ForegroundColor Green
 Write-Host "标题: $title" -ForegroundColor Cyan

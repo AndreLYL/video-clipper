@@ -30,16 +30,27 @@ gh release create v1.3.1 `
     dist\VideoClipper_v1.3.1.exe
 ```
 
-### 方法3：使用英文标题（最安全）
+### 方法3：使用英文标题（最安全，推荐）
 
-如果担心编码问题，可以使用英文标题：
+如果担心编码问题，可以使用英文标题。这是最可靠的方法：
 
 ```powershell
+# 设置UTF-8编码
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+chcp 65001 | Out-Null
+
+# 使用英文标题，发布说明可以是中文
+$title = "VideoClipper v1.3.1"
+$notes = Get-Content "RELEASE_NOTES_v1.3.1.md" -Encoding UTF8 -Raw
+
 gh release create v1.3.1 `
-    --title "VideoClipper v1.3.1" `
-    --notes-file RELEASE_NOTES_v1.3.1.md `
+    --title $title `
+    --notes $notes `
     dist\VideoClipper_v1.3.1.exe
 ```
+
+**注意**：使用英文标题可以避免所有编码问题，发布说明内容仍然可以是中文。
 
 ## 📝 发布说明文件格式
 
