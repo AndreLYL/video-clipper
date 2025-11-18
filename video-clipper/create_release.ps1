@@ -40,15 +40,21 @@ if (-not (Test-Path $ReleaseNotesFile)) {
 }
 
 # 使用GitHub CLI创建Release
-# 注意：使用--title参数明确指定标题，避免从文件读取时出现编码问题
-# 将标题转换为UTF-8字节数组再转回字符串，确保编码正确
-$utf8Bytes = [System.Text.Encoding]::UTF8.GetBytes($title)
-$titleUtf8 = [System.Text.Encoding]::UTF8.GetString($utf8Bytes)
-
+# 关键：使用--notes参数直接传递内容，而不是--notes-file，避免文件编码问题
+# 同时设置代码页为UTF-8 (65001)
 Write-Host "`n正在创建Release..." -ForegroundColor Yellow
+
+# 设置代码页为UTF-8
+chcp 65001 | Out-Null
+
+# 读取发布说明内容（UTF-8编码）
+$notesContent = Get-Content -Path $ReleaseNotesFile -Encoding UTF8 -Raw
+
+# 使用--notes参数直接传递内容，而不是--notes-file
+# 这样可以确保编码正确传递
 gh release create $Version `
-    --title $titleUtf8 `
-    --notes-file $ReleaseNotesFile `
+    --title $title `
+    --notes $notesContent `
     $ExeFile
 
 if ($LASTEXITCODE -eq 0) {
