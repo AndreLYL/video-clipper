@@ -17,7 +17,7 @@ video-clipper/
 ├── .gitignore                # Git忽略配置
 │
 ├── dist/                     # 生成的EXE文件目录
-│   └── VideoClipper_v1.3.0.exe
+│   └── VideoClipper_v1.3.2.exe
 │
 ├── build/                    # PyInstaller构建临时文件
 │
@@ -61,5 +61,5 @@ video-clipper/
 ## 🔗 相关链接
 
 - GitHub仓库: https://github.com/AndreLYL/video-clipper
-- 最新Release: https://github.com/AndreLYL/video-clipper/releases/tag/v1.3.0
+- 最新Release: https://github.com/AndreLYL/video-clipper/releases/tag/v1.3.2
 

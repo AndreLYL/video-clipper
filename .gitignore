@@ -1,52 +1,42 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-build/
-develop-eggs/
-dist-backup/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# PyInstaller
-*.manifest
-*.spec.backup
-build/
-dist/*.exe.backup
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
+# OS artifacts
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# 项目特定
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.venv/
+venv/
+env/
+.env
+pip-wheel-metadata/
+
+# Build output
+build/
+dist/
+
+# Node / web
+node_modules/
+
+# IDE / editor
+.vscode/
+.idea/
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake-build*/
+
+# Logs / temp
 *.log
 *.tmp
-test_videos/
-output/
+*.bak
+*.orig
 
-# 保留dist目录下的最终EXE文件
-!dist/VideoClipper_v1.0.0.exe
 

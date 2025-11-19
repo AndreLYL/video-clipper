@@ -1,7 +1,7 @@
 """
 视频裁剪软件
 支持单点裁剪和批量裁剪模式
-版本: 1.3.1
+版本: 1.3.2
 作者: andre.li
 """
 import os
@@ -14,12 +14,15 @@ from pathlib import Path
 import base64
 from io import BytesIO
 from PIL import Image
+import subprocess
+import tempfile
+import shutil
 
 
 class VideoClipperApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("视频裁剪工具 v1.3.1")
+        self.root.title("视频裁剪工具 v1.3.2")
         self.root.geometry("900x750")
         self.root.minsize(850, 700)  # 设置最小窗口尺寸
         self.root.resizable(True, True)
@@ -51,6 +54,7 @@ class VideoClipperApp:
         self.before_seconds = tk.StringVar(value="40")  # 向前裁剪秒数
         self.after_seconds = tk.StringVar(value="20")   # 向后裁剪秒数
         
+        self.temp_dirs = []
         self.create_widgets()
         
     def create_modern_card(self, parent, **kwargs):
@@ -77,7 +81,7 @@ class VideoClipperApp:
         
         # 版本标签
         version_label = tk.Label(header,
-                                text="v1.3.1",
+                                text="v1.3.2",
                                 font=("Microsoft YaHei UI", 8),
                                 bg=self.colors['accent'],
                                 fg='white',
@@ -700,6 +704,8 @@ class VideoClipperApp:
         try:
             video = VideoFileClip(video_path)
             duration = video.duration
+            if not duration:
+                raise ValueError("无法获取视频时长")
             return duration
         finally:
             if video is not None:
@@ -1155,7 +1161,7 @@ class VideoClipperApp:
         </div>
         
         <div class="footer">
-            视频裁剪工具 v1.3.1 | 作者: andre.li | {datetime.now().year}
+            视频裁剪工具 v1.3.2 | 作者: andre.li | {datetime.now().year}
         </div>
     </div>
     
@@ -1272,6 +1278,94 @@ class VideoClipperApp:
         """线程安全地更新进度标签"""
         self.root.after(0, lambda: self.progress_label.config(text=text))
     
+    def cleanup_temp_dirs(self):
+        """清理临时目录"""
+        for temp_dir in self.temp_dirs:
+            try:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            except Exception:
+                pass
+        self.temp_dirs.clear()
+
+    def ensure_video_readable(self, video_path):
+        """
+        确保视频可被moviepy读取，如果失败则自动使用ffmpeg重封装并返回新路径
+        """
+        if not video_path:
+            return video_path
+
+        def _try_open(path):
+            video = None
+            try:
+                video = VideoFileClip(path)
+                duration = video.duration
+                if not duration:
+                    raise ValueError("duration missing")
+                return True
+            except Exception as e:
+                error_text = str(e).lower()
+                if "failed to read the duration" in error_text or "duration" in error_text:
+                    return False
+                raise
+            finally:
+                if video is not None:
+                    video.close()
+
+        if _try_open(video_path):
+            return video_path
+
+        fixed_path = self.rewrap_video_with_ffmpeg(video_path)
+        if not fixed_path:
+            raise RuntimeError("视频无法读取，且自动修复失败，请确认文件是否损坏")
+
+        if not _try_open(fixed_path):
+            raise RuntimeError("自动修复后仍无法读取视频，请手动检查源文件")
+
+        return fixed_path
+
+    def rewrap_video_with_ffmpeg(self, video_path):
+        """
+        使用ffmpeg重新封装，生成可读取的临时视频文件
+        """
+        temp_dir = tempfile.mkdtemp(prefix="videoclipper_")
+        fixed_path = os.path.join(
+            temp_dir, f"{Path(video_path).stem}_fixed.mp4"
+        )
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-fflags",
+            "+genpts",
+            "-i",
+            video_path,
+            "-c",
+            "copy",
+            "-movflags",
+            "+faststart",
+            fixed_path,
+        ]
+        try:
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise RuntimeError("未找到ffmpeg，请确保其已安装并加入PATH")
+
+        if result.returncode != 0 or not os.path.exists(fixed_path):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise RuntimeError(
+                "自动修复视频失败，ffmpeg输出:\n\n"
+                f"{result.stderr.strip() or result.stdout.strip()}"
+            )
+
+        self.temp_dirs.append(temp_dir)
+        return fixed_path
+
     def process_single_clip(self):
         """处理单点裁剪"""
         video_path = self.source_video.get()
@@ -1292,6 +1386,7 @@ class VideoClipperApp:
         Path(target_dir).mkdir(parents=True, exist_ok=True)
         
         try:
+            working_video_path = self.ensure_video_readable(video_path)
             # 解析时间
             video_start_seconds = self.parse_time(video_start)
             clip_time_seconds = self.parse_time(clip_time_str)
@@ -1319,7 +1414,7 @@ class VideoClipperApp:
             self.update_progress("正在检查视频...")
             self.root.after(0, lambda: self.progress_bar.start())
             
-            video_duration = self.get_video_duration(video_path)
+            video_duration = self.get_video_duration(working_video_path)
             
             # 验证裁剪范围
             if start_time < 0:
@@ -1347,7 +1442,7 @@ class VideoClipperApp:
             self.root.after(0, lambda: self.progress_bar.start())
             
             # 裁剪视频
-            self.clip_video(video_path, start_time, end_time, output_path)
+            self.clip_video(working_video_path, start_time, end_time, output_path)
             
             self.root.after(0, lambda: self.progress_bar.stop())
             self.update_progress("裁剪完成!")
@@ -1362,6 +1457,8 @@ class VideoClipperApp:
             self.update_progress("就绪")
             error_msg = str(e)
             self.root.after(0, lambda: messagebox.showerror("错误", f"裁剪失败: {error_msg}"))
+        finally:
+            self.cleanup_temp_dirs()
     
     def process_batch_clip(self):
         """处理批量裁剪"""
@@ -1387,6 +1484,7 @@ class VideoClipperApp:
         Path(target_dir).mkdir(parents=True, exist_ok=True)
         
         try:
+            working_video_path = self.ensure_video_readable(video_path)
             # 获取用户配置的裁剪时长
             try:
                 before_sec = int(self.before_seconds.get())
@@ -1458,7 +1556,7 @@ class VideoClipperApp:
             # 预先检查视频时长
             self.update_progress("正在检查视频时长...")
             self.root.after(0, lambda: self.progress_bar.start())
-            video_duration = self.get_video_duration(video_path)
+            video_duration = self.get_video_duration(working_video_path)
             
             self.root.after(0, lambda: self.progress_bar.stop())
             self.update_progress(f"视频时长: {self.seconds_to_time(video_duration)}, 共{len(timestamps)}个裁剪点")
@@ -1524,7 +1622,7 @@ class VideoClipperApp:
                     self.update_progress(f"正在裁剪 ({i+1}/{len(timestamps)}): {time_str}")
                     
                     # 裁剪视频
-                    self.clip_video(video_path, start_time, end_time, output_path)
+                    self.clip_video(working_video_path, start_time, end_time, output_path)
                     
                     # 提取首尾帧
                     self.update_progress(f"正在提取帧 ({i+1}/{len(timestamps)}): {time_str}")
@@ -1594,6 +1692,8 @@ class VideoClipperApp:
             self.update_progress("就绪")
             error_msg = str(e)
             self.root.after(0, lambda: messagebox.showerror("错误", f"批量裁剪失败: {error_msg}"))
+        finally:
+            self.cleanup_temp_dirs()
     
     def start_clipping(self):
         """开始裁剪"""

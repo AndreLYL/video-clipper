@@ -10,7 +10,7 @@
 
 ```powershell
 cd video-clipper
-.\create_release.ps1 -Version "v1.3.1" -ReleaseNotesFile "RELEASE_NOTES_v1.3.1.md" -ExeFile "dist\VideoClipper_v1.3.1.exe"
+.\create_release.ps1 -Version "v1.3.2" -ReleaseNotesFile "RELEASE_NOTES_v1.3.2.md" -ExeFile "dist\VideoClipper_v1.3.2.exe"
 ```
 
 ### 方法2：使用GitHub CLI（手动）
@@ -21,13 +21,13 @@ cd video-clipper
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 # 2. 从发布说明文件提取标题（第一行，去掉#号）
-$title = (Get-Content "RELEASE_NOTES_v1.3.1.md" -Encoding UTF8 -First 1) -replace '^#\s*', ''
+$title = (Get-Content "RELEASE_NOTES_v1.3.2.md" -Encoding UTF8 -First 1) -replace '^#\s*', ''
 
 # 3. 创建Release（使用--title参数明确指定标题）
-gh release create v1.3.1 `
+gh release create v1.3.2 `
     --title $title `
-    --notes-file RELEASE_NOTES_v1.3.1.md `
-    dist\VideoClipper_v1.3.1.exe
+    --notes-file RELEASE_NOTES_v1.3.2.md `
+    dist\VideoClipper_v1.3.2.exe
 ```
 
 ### 方法3：使用英文标题（最安全，推荐）
@@ -41,13 +41,13 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 chcp 65001 | Out-Null
 
 # 使用英文标题，发布说明可以是中文
-$title = "VideoClipper v1.3.1"
-$notes = Get-Content "RELEASE_NOTES_v1.3.1.md" -Encoding UTF8 -Raw
+$title = "VideoClipper v1.3.2"
+$notes = Get-Content "RELEASE_NOTES_v1.3.2.md" -Encoding UTF8 -Raw
 
-gh release create v1.3.1 `
+gh release create v1.3.2 `
     --title $title `
     --notes $notes `
-    dist\VideoClipper_v1.3.1.exe
+    dist\VideoClipper_v1.3.2.exe
 ```
 
 **注意**：使用英文标题可以避免所有编码问题，发布说明内容仍然可以是中文。
@@ -57,7 +57,7 @@ gh release create v1.3.1 `
 发布说明文件（`RELEASE_NOTES_v*.md`）的第一行应该是标题，格式如下：
 
 ```markdown
-# 视频裁剪工具 v1.3.1 发布说明
+# 视频裁剪工具 v1.3.2 发布说明
 ```
 
 脚本会自动提取这个标题作为Release标题。
@@ -71,7 +71,7 @@ gh release create v1.3.1 `
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 # 修复Release标题
-gh release edit v1.3.1 --title "视频裁剪工具 v1.3.1"
+gh release edit v1.3.2 --title "视频裁剪工具 v1.3.2"
 ```
 
 ## ✅ 检查清单
@@ -109,5 +109,5 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 ---
 
-**最后更新**: 2025-11-18
+**最后更新**: 2025-11-19
 
