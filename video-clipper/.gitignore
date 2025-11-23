@@ -2,40 +2,29 @@
 __pycache__/
 *.py[cod]
 *$py.class
-*.pyd
 *.so
 .Python
 env/
 venv/
-.venv/
 ENV/
-.env
 *.egg-info/
 .installed.cfg
 *.egg
-pip-wheel-metadata/
 
 # PyInstaller
 *.manifest
 *.spec.backup
 build/
-dist/
 dist/*.exe.backup
 
-# IDE / editor
+# IDE
 .vscode/
 .idea/
-*.code-workspace
 *.swp
 *.swo
 *~
 
-# CMake
-CMakeFiles/
-CMakeCache.txt
-cmake-build*/
-
-# OS artifacts
+# OS
 .DS_Store
 Thumbs.db
 desktop.ini
@@ -43,8 +32,6 @@ desktop.ini
 # 项目特定
 *.log
 *.tmp
-*.bak
-*.orig
 test_videos/
 output/
 *.html
@@ -61,5 +48,3 @@ v1.*_temp_commit.txt
 test_*.txt
 test_*.py
 
-# Node / web
-node_modules/
