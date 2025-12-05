@@ -28,6 +28,20 @@
 
 [查看完整更新日志](RELEASE_NOTES_v1.3.2.md)
 
+### 🐧 Linux 单文件打包与运行
+
+如果需要在 Linux 下运行，可使用 PyInstaller 生成单文件可执行：
+
+1) 安装系统依赖：`python3`、`python3-venv`、`ffmpeg`  
+2) 执行一键脚本：  
+   ```bash
+   cd video-clipper
+   chmod +x build_linux.sh
+   ./build_linux.sh
+   ```  
+3) 产物路径：`dist/VideoClipper_v1.3.2_linux`，若无执行权限请运行 `chmod +x dist/VideoClipper_v1.3.2_linux`  
+4) 直接运行可执行文件，即可启动图形界面（需要桌面环境，Tkinter 依赖桌面组件）
+
 ## 🚀 快速开始
 
 ### 1. 启动程序
